@@ -18,15 +18,17 @@ class CustomEnum(Enum):
 
         return False
 
-    @staticmethod
-    def has_key(key):
+    def has_key(self, key: Any) -> bool:
+        """
+        :type key: Any
+        :rtype: bool
+        """
         key = str(key)
 
-        return key in PinState or key.rsplit(".")[-1] in PinState.__members__
+        return key in self or key.rsplit(".")[-1] in self.__members__
 
-    @staticmethod
-    def has_value(value):
-        return value in [item.value for item in PinState]
+    def has_value(self, value: Any) -> bool:
+        return value in [item.value for item in self.__members__]
 
 
 class PinState(CustomEnum):
