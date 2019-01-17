@@ -1,9 +1,8 @@
 from enum import Enum
-from typing import List, Union
+from logging import Logger
+from typing import Any, Set
 
-from gpiozero import CompositeDevice, Motor
-from gpiozero.exc import PinInvalidFunction
-from gpiozero import Pin as GPin
+from gpiozero import CompositeDevice, OutputDevice, PWMOutputDevice
 
 from cockout import Place
 from cockout.exceptions import *
@@ -31,66 +30,61 @@ class CustomEnum(Enum):
         return value in [item.value for item in self.__members__]
 
 
-class PinState(CustomEnum):
-    LOW = 0
-    HIGH = 1
-
-
-class PinType(CustomEnum):
-    type: str = None
-    INPUT = 0
-    OUTPUT = 1
-
-
-class Pin(GPin):
-    state: PinState = 0
-
+class Pin(OutputDevice):
     def __init__(self, number: int):
-        super().__init__()
+        super().__init__(number)
+        self.log.debug(f"Instaniate pin {number}")
         self.number = number
+        # self.type: PinType = PinType.OUTPUT  # TODO
+        self.function = "output"  # TODO
 
-    def _get_function(self):
-        return self.state
+    def __hash__(self):
+        return hash(self.number)
 
-    def _set_function(self, value: Union[PinState, int]):
-        if not PinState.has_key(value) and not PinState.has_value(value):
-            raise PinInvalidFunction("Cannot set the function of pin %r to %s" % (self, value))
-
-    def _get_state(self) -> PinState:
-        return self.state
+    def __repr__(self):
+        return f"<Pin {self.number}>"
 
 
-class Pump(Motor):
-    def __init__(self, high_pin: Pin, low_pin: Pin, place: Place, strength: int):
-        super().__init__(forward=high_pin.number, backward=low_pin.number)
+class Pump(PWMOutputDevice):
+    def __init__(self, pin: Pin, place: Place, strength: int, ingredient_id: int):
+        super().__init__(pin=pin.number)
+        self.log.debug(f"Instaniate pump {id}")
+        self.ingredient_id = ingredient_id
+        self.set_speed(0)
         self.place = place
-        self.is_forward = True
-        self.time100ml = strength
+        self.time100ml = strength  # seconds
 
-    """
-    Between 0 and 100
-    """
     def set_speed(self, speed_percent: int):
+        """
+        Between 0 and 100
+        """
         if speed_percent < 0 or speed_percent > 100:
-            raise AttributeError("speed_percent for Pump.set_speed has to be between 0 and 100.")
+            exception_message = "speed_percent for Pump.set_speed has to be between 0 and 100."
+            self.log.exception(exception_message)
+            raise AttributeError(exception_message)
 
-        speed = speed_percent / 100
-        if self.is_forward:
-            self.forward(speed)
-        else:
-            self.backward(speed)
+        self.value = speed_percent / 100
 
-    """
-    Between 0 and 1
-    """
-    def speed(self):
+    def speed(self) -> float:
+        """
+        Between 0 and 1
+        """
         return self.value
 
-    """
-    Between 0 and 100
-    """
-    def speed_percent(self):
-        return self.speed() * 100
+    def start(self):
+        self.on()
+
+    def stop(self):
+        self.off()
+
+    def speed_percent(self) -> int:
+        """
+        Between 0 and 100
+        """
+        return int(self.speed() * 100)
+
+    def __hash__(self):
+        return hash(self.place)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -98,31 +92,69 @@ class Pump(Motor):
                    self.low_pin == other.low_pin and \
                    self.place == other.place
 
-
-class DcPump(Pump):
-    def __init__(self, high_pin: Pin, low_pin: Pin, place: Place = None, strength: """TODO""" = None):
-        super().__init__(high_pin=high_pin, low_pin=low_pin, place=place, strength=strength)
+        return False
 
 
-class MotorController(CompositeDevice):
-    def __init__(self):
+class PumpController(CompositeDevice):
+    def __init__(self, id: int, enable_pins: Set[Pin] = None):
+        self.log = Logger(f"pump_controller <{id}>")
+        self.log.debug(f"Instaniate pump controller {id}")
         super().__init__()
-        self.pumps: List[Pump] = []
+        self.id = id
+        self.enable_pins = enable_pins or set()
+        self.pumps: Set[Pump] = []
 
     def add_pump(self, pump: Pump):
         for existing_pump in self.pumps:
-            if existing_pump == pump:
+            if existing_pump.place.number == pump.place.number:
                 raise DuplicatePinError()
 
-        self.pumps.append(pump)
+        self.pumps.add(pump)
 
-    def set_speed(self, pump_place: int, speed_percent: int):
-        for pump in filter(lambda pump: pump.place == pump_place, self.pumps):
+    def set_speed(self, pump: Pump, speed_percent: int):
+        for pump in filter(lambda other: other.place.number == pump.place, self.pumps):
             return pump.set_speed(speed_percent)
 
-        raise NoSuchElement(f"Pump with place {pump_place} not found for {self}")
+        exception_message = "Pump with place {} not found for {}".format(pump.place, self)
+        self.log.exception(exception_message)
+        raise NoSuchElement(exception_message)
+
+    def enable_pump(self, pump: Pump):
+        for pump in filter(lambda other_pump: pump.place == other_pump.place, self.pumps):
+            return pump.start()
+
+        exception_message = "Pump with place {} not found for {}".format(pump.place, self)
+        self.log.exception(exception_message)
+        raise NoSuchElement(exception_message)
+
+    def disable_pump(self, pump: Pump):
+        for pump in filter(lambda other_pump: pump.place == other_pump.place, self.pumps):
+            return pump.stop()
+
+        exception_message = "Pump with place {} not found for {}".format(pump.place, self)
+        self.log.exception(exception_message)
+        raise NoSuchElement(exception_message)
+
+    def enable_all(self) -> bool:
+        return all(pin.on() for pin in self.enable_pins)
+
+    def disable_all(self) -> bool:
+        return all(pin.off() for pin in self.enable_pins)
+
+    def __repr__(self):
+        pump_ids = " | ".join([pump.id for pump in self.pumps])
+
+        return "<{}: {}>".format(self.__class__.__name__, pump_ids)
+
+    def __str__(self):
+        return self.__repr__()
 
 
-class L298N(MotorController):
-    def __init__(self):
-        super().__init__()
+class L298N(PumpController):
+    def __init__(self, id: int, enable_pin_1: Pin, enable_pin_2: Pin):
+        super().__init__(id, enable_pins={enable_pin_1, enable_pin_2})
+
+    def __repr__(self):
+        pump_ids = " | ".join([pump.id for pump in self.pumps])
+
+        return "<{}: {}>".format(self.__class__.__name__, pump_ids)

@@ -1,9 +1,10 @@
-from typing import Set
+from typing import Set, List
 
 from gpiozero import OutputDevice
 
 from cockout import Place
 from cockout.io import L298N, PumpController, Pin, Pump
+from cockout.recipe import Recipe
 
 
 class CockBot:
@@ -14,14 +15,20 @@ class CockBot:
     def add_motor_controller(self, motor_controller: PumpController):
         self.motor_controllers.add(motor_controller)
 
+    def pour(self, recipe: Recipe):
+        pass
 
-def main(pins):
+
+def main(pins: List[Pin]):
+    gin_ingredient_id = 0
+    tonic_ingredient_id = 1
+
     bot = CockBot()
     controller = L298N(enable_pin_1=pins[0], enable_pin_2=pins[1])
+    controller.enable_all()
     strength = 100
-    OutputDevice(pins[0].number).on()
-    pump1 = Pump(pin=Pin(4), place=Place(1), strength=strength)
-    pump2 = Pump(pin=Pin(15), place=Place(2), strength=strength)
+    pump1 = Pump(pin=Pin(4), place=Place(1), strength=strength, ingredient_id=gin_ingredient_id)
+    pump2 = Pump(pin=Pin(15), place=Place(2), strength=strength, ingredient_id=tonic_ingredient_id)
     controller.add_pump(pump1)
     controller.add_pump(pump2)
     bot.add_motor_controller(controller)
