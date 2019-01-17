@@ -63,6 +63,9 @@ class Pump(PWMOutputDevice):
 
         self.value = speed_percent / 100
 
+    def set_ml(self, milliliter: int):
+        time = milliliter / self.time100ml
+
     def speed(self) -> float:
         """
         Between 0 and 1
