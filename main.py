@@ -19,32 +19,31 @@ class CockBot:
         pass
 
 
-def main(pins: List[Pin]):
+def main():
     gin_ingredient_id = 0
     tonic_ingredient_id = 1
 
+    recipe = Recipe(1, {Ingredient(0, 0, 50), Ingredient(1, 0, 50)}, Glass(400))
+
     bot = CockBot()
-    controller = L298N(enable_pin_1=pins[0], enable_pin_2=pins[1])
+    controller = L298N(0, enable_pin_1=Pin(3), enable_pin_2=Pin(14))
     controller.enable_all()
     strength = 100
-    pump1 = Pump(pin=Pin(4), place=Place(1), strength=strength, ingredient_id=gin_ingredient_id)
-    pump2 = Pump(pin=Pin(15), place=Place(2), strength=strength, ingredient_id=tonic_ingredient_id)
+    pump1 = Pump(pin_number=4, place=Place(1), strength=strength, ingredient_id=gin_ingredient_id)
+    pump2 = Pump(pin_number=15, place=Place(2), strength=strength, ingredient_id=tonic_ingredient_id)
     controller.add_pump(pump1)
     controller.add_pump(pump2)
     bot.add_motor_controller(controller)
 
     pump1.is_forward = False
     pump2.is_forward = False
-    controller.set_speed(1, 100)
-    controller.set_speed(2, 100)
-    controller.set_speed(1, 0)
-    controller.set_speed(2, 0)
+
+    # bot.pour(recipe=recipe)
+    bot.pumps()
 
 
 if __name__ == "__main__":
-    pins = [Pin(3), Pin(14), Pin(2), Pin(4), Pin(15), Pin(18)]
     try:
-        main(pins)
+        main()
     except Exception as e:
-        print("E: {}".format(e))
-    [p.close() for p in pins]
+        Logger("main").exception(f"{e}")

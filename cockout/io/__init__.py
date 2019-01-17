@@ -32,11 +32,9 @@ class CustomEnum(Enum):
 
 class Pin(OutputDevice):
     def __init__(self, number: int):
-        super().__init__(number)
-        self.log.debug(f"Instaniate pin {number}")
         self.number = number
-        # self.type: PinType = PinType.OUTPUT  # TODO
-        self.function = "output"  # TODO
+        super().__init__(number)
+        # self.log.debug(f"Instaniate pin {number}")
 
     def __hash__(self):
         return hash(self.number)
@@ -46,8 +44,8 @@ class Pin(OutputDevice):
 
 
 class Pump(PWMOutputDevice):
-    def __init__(self, pin: Pin, place: Place, strength: int, ingredient_id: int):
-        super().__init__(pin=pin.number)
+    def __init__(self, pin_number: int, place: Place, strength: int, ingredient_id: int):
+        super().__init__(pin=pin_number)
         self.log.debug(f"Instaniate pump {id}")
         self.ingredient_id = ingredient_id
         self.set_speed(0)
