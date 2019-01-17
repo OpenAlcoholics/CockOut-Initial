@@ -1,6 +1,11 @@
 from typing import Set
 
 
+class Glass:
+    def __init__(self, size: int):
+        self.size = size
+
+
 class Ingredient:
     def __init__(self, id: int, rank: int, share: int):
         self.share = share
@@ -12,6 +17,7 @@ class Ingredient:
 
 
 class Recipe:
-    def __init__(self, id: int, ingredients: Set[Ingredient]):
+    def __init__(self, id: int, ingredients: Set[Ingredient], glass: Glass):
         self.id = id
         self.ingredients = ingredients
+        self.glass = glass
